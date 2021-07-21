@@ -773,33 +773,30 @@ Result SFTPInternal::openConnection()
         closeConnection();
         return Result::fail(KIO::ERR_SLAVE_DEFINED, errorString);
     }
-    case SSH_KNOWN_HOSTS_CHANGED: {
-        const QString errorString = i18n("The host key for the server %1 has changed.\n"
-                                         "This could either mean that DNS SPOOFING is happening or the IP "
-                                         "address for the host and its host key have changed at the same time.\n"
-                                         "The fingerprint for the %2 key sent by the remote host is:\n"
-                                         "  SHA256:%3\n"
-                                         "Please contact your system administrator.\n%4",
-                                         mHost,
-                                         QString::fromUtf8(srv_pubkey_type),
-                                         QString::fromUtf8(fingerprint),
-                                         QString::fromUtf8(ssh_get_error(mSession)));
-        ssh_string_free_char(fingerprint);
-        closeConnection();
-        return Result::fail(KIO::ERR_SLAVE_DEFINED, errorString);
-    }
+    case SSH_KNOWN_HOSTS_CHANGED:
     case SSH_KNOWN_HOSTS_NOT_FOUND:
     case SSH_KNOWN_HOSTS_UNKNOWN: {
-        caption = i18n("Warning: Cannot verify host's identity.");
-        msg = i18n("The authenticity of host %1 cannot be established.\n"
-                   "The %2 key fingerprint is: %3\n"
-                   "Are you sure you want to continue connecting?",
-                   mHost,
-                   QString::fromUtf8(srv_pubkey_type),
-                   QString::fromUtf8(fingerprint));
+        if (state == SSH_KNOWN_HOSTS_CHANGED) {
+            caption = i18nc("@title:window", "Warning: Host's identity has changed.");
+            msg = i18n("The host key for the server %1 has changed.\n"
+                       "This could either mean that DNS SPOOFING is happening or the IP "
+                       "address for the host and its host key have changed at the same time.\n"
+                       "The fingerprint for the %2 key sent by the remote host is:\n"
+                       "  %3",
+                       mHost,
+                       QString::fromUtf8(srv_pubkey_type),
+                       QString::fromUtf8(fingerprint));
+        } else {
+            caption = i18n("Warning: Cannot verify host's identity.");
+            msg = i18n("The authenticity of host %1 cannot be established.\n"
+                       "The %2 key fingerprint is: %3",
+                       mHost,
+                       QString::fromUtf8(srv_pubkey_type),
+                       QString::fromUtf8(fingerprint));
+        }
         ssh_string_free_char(fingerprint);
 
-        if (KMessageBox::Yes != q->messageBox(SlaveBase::WarningYesNo, msg, caption)) {
+        if (KMessageBox::Continue != q->messageBox(SlaveBase::WarningContinueCancel, msg, caption, i18nc("@action:button", "Connect Anyway"))) {
             closeConnection();
             return Result::fail(KIO::ERR_USER_CANCELED);
         }
